@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#121212">
+<title>Сбор — экстренные уведомления</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(160deg, #0f0f1a, #1a1a2e);
+    color: #eaeaea; min-height: 100vh;
+    display: flex; justify-content: center;
+  }
+  #app { width: 100%; max-width: 480px; padding: 20px 16px 40px; display: flex; flex-direction: column; min-height: 100vh; }
+  .screen { display: none; flex-direction: column; flex: 1; }
+  .screen.active { display: flex; }
+  h1 { font-size: 26px; margin: 8px 0 4px; }
+  .subtitle { color: #8a8aa0; font-size: 14px; margin-bottom: 20px; }
+  label { font-size: 13px; color: #a0a0b8; margin-bottom: 6px; display: block; }
+  input {
+    width: 100%; padding: 14px 16px; font-size: 16px; background: #1e1e30;
+    border: 1px solid #2e2e48; border-radius: 12px; color: #fff;
+    margin-bottom: 16px; outline: none; transition: border-color 0.3s;
+  }
+  input:focus { border-color: #FFC107; }
+  button {
+    width: 100%; padding: 16px; font-size: 16px; font-weight: 600;
+    border: none; border-radius: 14px; cursor: pointer;
+    transition: transform .1s; margin-bottom: 12px;
+  }
+  button:active { transform: scale(.97); }
+  .btn-yellow { background: #FFC107; color: #1a1a1a; }
+  .btn-green { background: #4CAF50; color: #fff; }
+  .btn-blue { background: #3b82f6; color: #fff; }
+  .btn-outline { background: transparent; border: 1px solid #3e3e60; color: #cfcfe0; }
+  .btn-mega { background: #ff0000; color: #fff; border: 1px solid #ff0000; }
+  .spacer { flex: 1; }
+  
+  .card { background: #1e1e30; border-radius: 16px; padding: 16px; margin-bottom: 16px; transition: background 0.2s; }
+  .team-card { cursor: pointer; position: relative; border: 1px solid #2e2e48; }
+  .team-card:hover { background: #2a2a40; }
+  
+  .code {
+    font-family: monospace; font-size: 34px; letter-spacing: 8px;
+    text-align: center; color: #FFC107; padding: 16px;
+    background: #14141f; border-radius: 12px; margin: 12px 0;
+  }
+  .hint { font-size: 13px; color: #8a8aa0; text-align: center; }
+  
+  /* Стили для чата */
+  .messages { flex: 1; overflow-y: auto; padding: 8px 0; max-height: 45vh; display: flex; flex-direction: column; }
+  .msg { 
+    background: #1e1e30; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; 
+    border-left: 3px solid #3e3e60; position: relative; align-self: flex-start; max-width: 90%;
+    transition: all 0.2s;
+  }
+  .msg.own { align-self: flex-end; background: #263238; border-left: none; border-right: 3px solid #4CAF50; }
+  .msg.owner-msg { border-color: #FFC107; }
+  .msg.owner-msg.own { border-right-color: #FFC107; }
+  .msg.scheduled { border-color: #3b82f6; opacity: 0.8; border-style: dashed; }
+  
+  /* СТИЛИ ДЛЯ МЕГА-СООБЩЕНИЯ */
+  .msg.mega { 
+    border-color: #ff0000; background: #3a1a1a; border-width: 3px; 
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.4); 
+  }
+  .msg.mega .text { color: #ffcccc; font-weight: bold; font-size: 16px; }
+  .mega-badge { 
+    background: #ff0000; color: #fff; font-size: 10px; padding: 1px 5px; 
+    border-radius: 4px; font-weight: bold; animation: pulse 1s infinite; 
+  }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+  
+  .msg .meta { font-size: 11px; color: #8a8aa0; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;}
+  .msg .text { font-size: 15px; line-height: 1.4; word-break: break-word; }
+  .del-btn { 
+    background: none; border: none; color: #ff5252; font-size: 14px; cursor: pointer; 
+    padding: 0 4px; margin-left: auto; width: auto; opacity: 0.7; 
+  }
+  .creator-badge { background: #FFC107; color: #1a1a1a; font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: bold; }
+
+  .back { background: none; border: none; color: #8a8aa0; font-size: 15px; padding: 8px 0; text-align: left; margin-bottom: 8px; width: auto; }
+  .badge { display: inline-block; background: #2e2e48; color: #cfcfe0; padding: 4px 10px; border-radius: 20px; font-size: 12px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #FFC107; color: #1a1a1a; padding: 12px 20px; border-radius: 30px;
+    font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 999;
+    text-align: center; width: 90%; max-width: 400px;
+  }
+  .toast.show { opacity: 1; }
+  
+  /* Список участников */
+  .member-list { list-style: none; padding: 0; margin: 0; }
+  .member-list li { padding: 8px 0; border-bottom: 1px solid #2e2e48; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+  .member-list li:last-child { border-bottom: none; }
+
+  /* Всплывающий баннер */
+  .top-banner {
+    position: fixed; top: 0; left: 50%; transform: translate(-50%, -150%);
+    width: 95%; max-width: 400px; background: #FFC107; color: #1a1a1a;
+    padding: 14px 18px; border-radius: 0 0 16px 16px; 
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    z-index: 1000; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.3s;
+    cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  }
+  .top-banner.show { transform: translate(-50%, 0); }
+  .top-banner.mega-banner { background: #ff0000; color: #fff; box-shadow: 0 8px 30px rgba(255,0,0,0.8); }
+  
+  .top-banner .b-title { font-size: 12px; font-weight: 700; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+  .top-banner .b-text { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Блок отложенного сообщения */
+  .schedule-box { display: none; background: #1e1e30; padding: 12px; border-radius: 12px; margin-bottom: 12px; border: 1px dashed #3b82f6; }
+  .schedule-box.active { display: block; }
+  .schedule-box input { margin-bottom: 8px; border-color: #3b82f6; }
+</style>
+</head>
+<body>
+
+<!-- Всплывающий баннер -->
+<div id="topBanner" class="top-banner" onclick="openTeamFromBanner()">
+  <div class="b-title" id="bannerTitle">Сообщение от команды ()</div>
+  <div class="b-text" id="bannerText">Текст сообщения</div>
+</div>
+
+<div id="app">
+
+  <!-- Вход -->
+  <div class="screen active" id="screen-auth">
+    <div class="spacer"></div>
+    <h1>⚡ Сбор</h1>
+    <p class="subtitle">Экстренные уведомления для команды</p>
+    <label>Твоя почта</label>
+    <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+    <button class="btn-yellow" onclick="doAuth()">Войти / зарегистрироваться</button>
+    <p class="hint">Подойдёт любая почта</p>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- Главный экран -->
+  <div class="screen" id="screen-home">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h1 style="margin:0;">⚡ Сбор</h1>
+      <button class="back" style="margin:0;" onclick="logout()">Выйти</button>
+    </div>
+    <p class="subtitle" id="homeUser"></p>
+    <div id="currentTeamBox"></div>
+    <div class="spacer"></div>
+    <button class="btn-yellow" onclick="show('screen-create')">➕ Создать команду</button>
+    <button class="btn-green" onclick="show('screen-join')">🔗 Присоединиться к команде</button>
+    <button class="btn-blue" onclick="openTeam()">💬 Открыть чат команды</button>
+    <div id="notifBox" style="margin-top:16px;"></div>
+  </div>
+
+  <!-- Создать команду -->
+  <div class="screen" id="screen-create">
+    <button class="back" onclick="show('screen-home')">← Назад</button>
+    <h1>Новая команда</h1>
+    <p class="subtitle">Придумай название и пароль. Получишь 6-значный код.</p>
+    <label>Название команды</label>
+    <input type="text" id="teamName" placeholder="Например: Сборы 24/7">
+    <label>Пароль команды</label>
+    <input type="text" id="teamPass" placeholder="Любой пароль">
+    <button class="btn-yellow" onclick="createTeam()">Создать</button>
+    <div id="createResult"></div>
+  </div>
+
+  <!-- Присоединиться -->
+  <div class="screen" id="screen-join">
+    <button class="back" onclick="show('screen-home')">← Назад</button>
+    <h1>Вход в команду</h1>
+    <p class="subtitle">Введи 6-значный код.</p>
+    <label>Код команды</label>
+    <input type="text" id="joinCode" placeholder="6 цифр" inputmode="numeric" maxlength="6">
+    <button class="btn-green" onclick="joinTeam()">Войти</button>
+  </div>
+
+  <!-- Команда / сообщения -->
+  <div class="screen" id="screen-team">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+      <button class="back" style="margin:0;" onclick="show('screen-home')">← Назад</button>
+      <button class="back" style="margin:0; color:#3b82f6;" onclick="showMembers()">👥 Участники</button>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h1 style="margin:0; font-size:22px;" id="teamTitle">Команда</h1>
+      <span class="badge" id="teamCodeBadge"></span>
+    </div>
+    <p class="subtitle" id="teamInfo"></p>
+    
+    <div class="messages" id="messages"></div>
+    
+    <!-- Блок отложенного сообщения -->
+    <div class="schedule-box" id="scheduleBox">
+      <label style="color:#3b82f6;">Время отправки:</label>
+      <input type="time" id="msgTime">
+      <p class="hint" style="text-align:left; margin-bottom:0;">Сообщение отправится всем в это время.</p>
+    </div>
+
+    <label id="msgLabel">Сообщение</label>
+    <input type="text" id="msgInput" placeholder="Текст сообщения..." onkeypress="if(event.key === 'Enter') sendMessage()">
+    
+    <div style="display:flex; gap:8px;">
+      <button class="btn-outline" id="megaBtn" style="width:50px; padding:12px 0; font-size:20px;" onclick="toggleMegaMode()" title="МЕГА-сообщение">🚨</button>
+      <button class="btn-outline" style="width:50px; padding:12px 0; font-size:20px;" onclick="toggleScheduleBox()" title="Запланировать">⏰</button>
+      <button class="btn-blue" style="flex:1; margin-bottom:12px;" onclick="sendMessage()">📢 Отправить</button>
+    </div>
+  </div>
+
+  <!-- Участники -->
+  <div class="screen" id="screen-members">
+    <button class="back" onclick="show('screen-team')">← Назад в чат</button>
+    <h1>Участники</h1>
+    <p class="subtitle" id="membersSubtitle"></p>
+    <div class="card">
+      <ul class="member-list" id="membersList"></ul>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Утилиты ---------- */
+const $ = id => document.getElementById(id);
+function toast(t) {
+  const el = $('toast');
+  el.textContent = t; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3000);
+}
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+  if (id === 'screen-team') renderMessages();
+  if (id === 'screen-members') renderMembers();
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- Хранилище ---------- */
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem('sb_' + k)) ?? d; } catch { return d; } },
+  set(k, v) { localStorage.setItem('sb_' + k, JSON.stringify(v)); }
+};
+const getTeam = code => store.get('teams', {})[code];
+function saveTeam(team) {
+  const all = store.get('teams', {});
+  all[team.code] = team;
+  store.set('teams', all);
+  if (bc) bc.postMessage({ type: 'sync', code: team.code });
+}
+
+/* ---------- Состояние ---------- */
+let state = { email: store.get('email', null), teamCode: store.get('teamCode', null) };
+let isScheduling = false;
+let isMegaMode = false;
+
+/* ---------- Авторизация ---------- */
+function doAuth() {
+  const email = $('authEmail').value.trim().toLowerCase();
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!re.test(email)) return toast('Введи корректную почту');
+  state.email = email; store.set('email', email);
+  initHome(); show('screen-home');
+}
+
+function logout() {
+  state.email = null; state.teamCode = null;
+  store.set('email', null); store.set('teamCode', null);
+  $('authEmail').value = '';
+  show('screen-auth');
+}
+
+/* ---------- Главный экран ---------- */
+function initHome() {
+  $('homeUser').textContent = state.email ? 'Вошёл как ' + state.email : '';
+  const team = state.teamCode ? getTeam(state.teamCode) : null;
+  $('currentTeamBox').innerHTML = team ? `
+    <div class="card team-card" onclick="openTeam()">
+      <div style="text-align:center;">
+        <div style="font-size:13px;color:#8a8aa0;">Текущая команда (нажми, чтобы войти)</div>
+        <div style="font-size:18px;font-weight:600;margin:6px 0;">${escapeHtml(team.name)}</div>
+        <div class="badge">Код: ${team.code}</div>
+      </div>
+      <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); font-size:20px; color:#FFC107;">➔</div>
+    </div>` : '';
+
+  let html = '';
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') html = '<p class="hint">✅ Уведомления разрешены</p>';
+    else if (Notification.permission === 'denied') html = '<p class="hint">⚠️ Уведомления заблокированы</p>';
+    else html = '<button class="btn-outline" onclick="askNotif()">🔔 Разрешить уведомления</button>';
+  } else { html = '<p class="hint">Браузер не поддерживает уведомления</p>'; }
+  $('notifBox').innerHTML = html;
+}
+
+async function askNotif() {
+  try {
+    const p = await Notification.requestPermission();
+    initHome();
+    if (p === 'granted') toast('Уведомления включены');
+  } catch (e) { toast('Ошибка'); }
+}
+
+/* ---------- Создать команду ---------- */
+function createTeam() {
+  const name = $('teamName').value.trim();
+  const pass = $('teamPass').value.trim();
+  if (!name) return toast('Введи название');
+  if (!pass) return toast('Введи пароль');
+  let code;
+  do { code = String(Math.floor(100000 + Math.random() * 900000)); } while (getTeam(code));
+
+  const team = {
+    code, name, pass,
+    owner: state.email,
+    members: [state.email],
+    messages: [],
+    scheduledMessages: [],
+    createdAt: Date.now()
+  };
+  saveTeam(team);
+  state.teamCode = code; store.set('teamCode', code);
+
+  $('createResult').innerHTML = `
+    <div class="card" style="margin-top:16px; text-align:center;">
+      <div style="color:#8a8aa0;font-size:13px;">Команда создана! Код:</div>
+      <div class="code">${code}</div>
+      <div class="hint">Передай код команде</div>
+    </div>`;
+  initHome();
+  toast('Команда «' + name + '» создана');
+}
+
+/* ---------- Присоединиться ---------- */
+function joinTeam() {
+  const code = $('joinCode').value.trim();
+  if (code.length !== 6) return toast('Код — 6 цифр');
+  const team = getTeam(code);
+  if (!team) return toast('Команда не найдена');
+  if (!team.members.includes(state.email)) {
+    team.members.push(state.email);
+    saveTeam(team);
+  }
+  state.teamCode = code; store.set('teamCode', code);
+  initHome(); openTeam();
+  toast('Ты в команде «' + team.name + '»');
+}
+
+/* ---------- Открыть команду ---------- */
+function openTeam() {
+  if (!state.teamCode) return toast('Сначала создай или присоединись к команде');
+  const team = getTeam(state.teamCode);
+  if (!team) { state.teamCode = null; store.set('teamCode', null); return toast('Команда не найдена'); }
+  
+  $('teamTitle').textContent = team.name;
+  $('teamCodeBadge').textContent = 'Код: ' + team.code;
+  $('teamInfo').innerHTML = `Участников: ${team.members.length} · Создатель: <b>${escapeHtml(team.owner)}</b>`;
+  renderMessages();
+  show('screen-team');
+  // Сброс мега-режима при входе в чат
+  if(isMegaMode) toggleMegaMode();
+}
+
+/* ---------- Участники ---------- */
+function renderMembers() {
+  const team = getTeam(state.teamCode);
+  if (!team) return;
+  $('membersSubtitle').textContent = 'Всего: ' + team.members.length;
+  $('membersList').innerHTML = team.members.map(m => `
+    <li>
+      ${m === team.owner ? '<span class="creator-badge">👑 Создатель</span>' : '👤'}
+      <span>${escapeHtml(m)}</span>
+    </li>
+  `).join('');
+}
+function showMembers() {
+  renderMembers();
+  show('screen-members');
+}
+
+/* ---------- Переключатели (МЕГА и Отложенное) ---------- */
+function toggleMegaMode() {
+  isMegaMode = !isMegaMode;
+  const btn = $('megaBtn');
+  const input = $('msgInput');
+  
+  if (isMegaMode) {
+    btn.classList.add('btn-mega');
+    btn.classList.remove('btn-outline');
+    input.style.borderColor = '#ff0000';
+    input.style.boxShadow = '0 0 10px rgba(255, 0, 0, 0.5)';
+    input.placeholder = '🚨 МЕГА-СООБЩЕНИЕ...';
+    toast('🚨 Режим МЕГА включен!');
+  } else {
+    btn.classList.remove('btn-mega');
+    btn.classList.add('btn-outline');
+    input.style.borderColor = '#2e2e48';
+    input.style.boxShadow = 'none';
+    input.placeholder = 'Текст сообщения...';
+  }
+}
+
+function toggleScheduleBox() {
+  isScheduling = !isScheduling;
+  const box = $('scheduleBox');
+  if (isScheduling) {
+    box.classList.add('active');
+    const d = new Date(Date.now() + 5 * 60000);
+    $('msgTime').value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  } else {
+    box.classList.remove('active');
+  }
+}
+
+/* ---------- Сообщения ---------- */
+function renderMessages() {
+  if (!state.teamCode) return;
+  const team = getTeam(state.teamCode);
+  if (!team) return;
+  const box = $('messages');
+  
+  const allMsgs = [
+    ...team.messages.map(m => ({...m, isScheduled: false})),
+    ...(team.scheduledMessages || []).map(m => ({...m, isScheduled: true}))
+  ].sort((a,b) => a.time - b.time);
+
+  if (!allMsgs.length) {
+    box.innerHTML = '<p class="hint" style="margin-top:20px;">Сообщений пока нет</p>';
+    return;
+  }
+
+  box.innerHTML = allMsgs.map((m, i) => {
+    const isOwner = m.from === team.owner;
+    const isMine = m.from === state.email;
+    const canDelete = isMine || state.email === team.owner;
+
+    let timeStr = new Date(m.time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+    if (m.isScheduled) timeStr = '⏰ ' + new Date(m.sendAt).toLocaleString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+
+    return `
+    <div class="msg ${isMine ? 'own' : ''} ${isOwner ? 'owner-msg' : ''} ${m.isScheduled ? 'scheduled' : ''} ${m.isMega ? 'mega' : ''}">
+      <div class="meta">
+        <span>${escapeHtml(m.from)}</span>
+        ${isOwner ? '<span class="creator-badge">👑</span>' : ''}
+        ${m.isMega ? '<span class="mega-badge">🚨 МЕГА</span>' : ''}
+        <span>· ${timeStr}</span>
+        ${m.isScheduled ? '<span style="color:#3b82f6; font-weight:bold;">(Запланировано)</span>' : ''}
+        ${canDelete ? `<button class="del-btn" onclick="deleteMessage('${m.time}', ${m.isScheduled})">🗑️</button>` : ''}
+      </div>
+      <div class="text">${escapeHtml(m.text)}</div>
+    </div>`;
+  }).join('');
+  
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendMessage() {
+  if (!state.teamCode) return toast('Сначала создай или присоединись к команде');
+  const text = $('msgInput').value.trim();
+  if (!text) return toast('Напиши сообщение');
+  const team = getTeam(state.teamCode);
+  if (!team) return toast('Команда не найдена');
+
+  if (isScheduling) {
+    const timeVal = $('msgTime').value;
+    if (!timeVal) return toast('Выбери время');
+    
+    const [hours, minutes] = timeVal.split(':').map(Number);
+    const target = new Date();
+    target.setHours(hours, minutes, 0, 0);
+    if (target.getTime() < Date.now()) {
+      target.setDate(target.getDate() + 1);
+    }
+
+    if (!team.scheduledMessages) team.scheduledMessages = [];
+    team.scheduledMessages.push({ 
+      text, from: state.email, time: Date.now(), sendAt: target.getTime(),
+      isMega: isMegaMode // Сохраняем флаг МЕГА
+    });
+    saveTeam(team);
+    $('msgInput').value = '';
+    toggleScheduleBox();
+    if (isMegaMode) toggleMegaMode();
+    renderMessages();
+    toast('Сообщение запланировано на ' + timeVal);
+  } else {
+    team.messages.push({ text, from: state.email, time: Date.now(), isMega: isMegaMode });
+    saveTeam(team);
+    $('msgInput').value = '';
+    if (isMegaMode) toggleMegaMode();
+    renderMessages();
+    
+    // При отправке мы сами тоже вибрируем (чтобы почувствовать, что отправили МЕГУ)
+    triggerVibrationAndSound(isMegaMode); 
+  }
+}
+
+function deleteMessage(time, isScheduled) {
+  const team = getTeam(state.teamCode);
+  if (!team) return;
+  if (!confirm('Удалить это сообщение?')) return;
+  
+  if (isScheduled) {
+    team.scheduledMessages = team.scheduledMessages.filter(m => m.time !== time);
+  } else {
+    team.messages = team.messages.filter(m => m.time !== time);
+  }
+  
+  saveTeam(team);
+  renderMessages();
+  toast('Удалено');
+}
+
+/* ---------- ТАЙМЕР ДЛЯ ОТЛОЖЕННЫХ СООБЩЕНИЙ ---------- */
+setInterval(() => {
+  if (!state.email) return;
+  const allTeams = store.get('teams', {});
+  let changed = false;
+
+  for (let code in allTeams) {
+    const team = allTeams[code];
+    if (!team.scheduledMessages || !team.scheduledMessages.length) continue;
+
+    const now = Date.now();
+    let due = team.scheduledMessages.filter(m => m.sendAt <= now);
+
+    if (due.length > 0) {
+      due.forEach(msg => {
+        team.messages.push({ text: msg.text, from: msg.from, time: now, isMega: msg.isMega });
+        
+        if (msg.from !== state.email) {
+          triggerVibrationAndSound(msg.isMega);
+          showTopBanner(team.name, "⏰ " + msg.text, msg.isMega);
+          showSystemNotification(team.name, "⏰ " + msg.text);
+        }
+      });
+      
+      team.scheduledMessages = team.scheduledMessages.filter(m => m.sendAt > now);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    store.set('teams', allTeams);
+    if (bc) bc.postMessage({ type: 'sync', code: state.teamCode });
+    renderMessages();
+    toast('Пришло отложенное сообщение!');
+  }
+}, 1000); 
+
+/* ---------- Уведомления ---------- */
+function triggerVibrationAndSound(isMega = false) {
+  if (navigator.vibrate) {
+    if (isMega) {
+      // 5 СЕКУНД ВИБРАЦИИ! (1с вибро, 0.5с пауза, 1с вибро, 0.5с пауза, 1с вибро, 0.5с пауза, 0.5с вибро = 5 сек)
+      navigator.vibrate([1000, 500, 1000, 500, 1000, 500, 500]);
+    } else {
+      // Обычная вибрация
+      navigator.vibrate([300, 100, 300, 100, 300]);
+    }
+  }
+  playBeep(isMega);
+}
+
+function showTopBanner(teamName, text, isMega = false) {
+  const banner = $('topBanner');
+  $('bannerTitle').textContent = isMega ? `🚨 МЕГА-СООБЩЕНИЕ от (${teamName})` : `Сообщение от команды (${teamName})`;
+  $('bannerText').textContent = text;
+  
+  if (isMega) {
+    banner.classList.add('mega-banner');
+  } else {
+    banner.classList.remove('mega-banner');
+  }
+  
+  banner.classList.add('show');
+  clearTimeout(banner._t);
+  banner._t = setTimeout(() => banner.classList.remove('show'), 6000); // Мегу держим чуть дольше
+}
+
+function openTeamFromBanner() {
+  $('topBanner').classList.remove('show');
+  if (state.teamCode) openTeam();
+}
+
+async function showSystemNotification(teamName, text) {
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) {} }
+    if (Notification.permission === 'granted') {
+      try { new Notification('⚡ Сбор: ' + teamName, { body: text, tag: 'sb-msg', vibrate: [300, 100, 300] }); } catch (e) {}
+    }
+  }
+}
+
+let audioCtx;
+function playBeep(isMega = false) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Для Меги делаем длинный и противный звук сирены
+    if (isMega) {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sawtooth'; // Более резкий звук
+        const t = audioCtx.currentTime;
+        // Сирена: понижаем и повышаем частоту 3 раза
+        o.frequency.setValueAtTime(600, t);
+        o.frequency.linearRampToValueAtTime(1200, t + 0.3);
+        o.frequency.linearRampToValueAtTime(600, t + 0.6);
+        o.frequency.linearRampToValueAtTime(1200, t + 0.9);
+        o.frequency.linearRampToValueAtTime(600, t + 1.2);
+        o.frequency.linearRampToValueAtTime(1200, t + 1.5);
+        
+        g.gain.setValueAtTime(0.3, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 1.5); // Затухает 1.5 секунды
+        
+        o.start(); o.stop(t + 1.5);
+        return;
+    }
+
+    // Обычный звук
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine';
+    const t = audioCtx.currentTime;
+    o.frequency.setValueAtTime(880, t);
+    o.frequency.setValueAtTime(660, t + 0.15);
+    o.frequency.setValueAtTime(880, t + 0.3);
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.start(); o.stop(t + 0.5);
+  } catch (e) {}
+}
+
+/* ---------- Синхронизация ---------- */
+const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('sb_channel') : null;
+if (bc) bc.onmessage = e => {
+  if (e.data?.type === 'sync' && e.data.code === state.teamCode) {
+    renderMessages();
+    const team = getTeam(state.teamCode);
+    if (team && team.messages.length) {
+      const last = team.messages[team.messages.length - 1];
+      if (last.from !== state.email) {
+        triggerVibrationAndSound(last.isMega);
+        showTopBanner(team.name, last.text, last.isMega);
+        showSystemNotification(team.name, last.text);
+      }
+    }
+  }
+};
+
+/* ---------- Старт ---------- */
+(function init() {
+  if (state.email) { initHome(); show('screen-home'); }
+  else show('screen-auth');
+})();
+</script>
+</body>
+</html>
