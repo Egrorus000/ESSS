@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#121212">
 <title>Сбор — экстренные уведомления</title>
+
+<!-- НАСТРОЙКИ ДЛЯ УСТАНОВКИ НА ТЕЛЕФОН (PWA) -->
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Сбор">
+
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; min-height: 100%; }
@@ -361,7 +368,6 @@ function openTeam() {
   $('teamInfo').innerHTML = `Участников: ${team.members.length} · Создатель: <b>${escapeHtml(team.owner)}</b>`;
   renderMessages();
   show('screen-team');
-  // Сброс мега-режима при входе в чат
   if(isMegaMode) toggleMegaMode();
 }
 
@@ -479,7 +485,7 @@ function sendMessage() {
     if (!team.scheduledMessages) team.scheduledMessages = [];
     team.scheduledMessages.push({ 
       text, from: state.email, time: Date.now(), sendAt: target.getTime(),
-      isMega: isMegaMode // Сохраняем флаг МЕГА
+      isMega: isMegaMode
     });
     saveTeam(team);
     $('msgInput').value = '';
@@ -493,8 +499,6 @@ function sendMessage() {
     $('msgInput').value = '';
     if (isMegaMode) toggleMegaMode();
     renderMessages();
-    
-    // При отправке мы сами тоже вибрируем (чтобы почувствовать, что отправили МЕГУ)
     triggerVibrationAndSound(isMegaMode); 
   }
 }
@@ -556,10 +560,8 @@ setInterval(() => {
 function triggerVibrationAndSound(isMega = false) {
   if (navigator.vibrate) {
     if (isMega) {
-      // 5 СЕКУНД ВИБРАЦИИ! (1с вибро, 0.5с пауза, 1с вибро, 0.5с пауза, 1с вибро, 0.5с пауза, 0.5с вибро = 5 сек)
       navigator.vibrate([1000, 500, 1000, 500, 1000, 500, 500]);
     } else {
-      // Обычная вибрация
       navigator.vibrate([300, 100, 300, 100, 300]);
     }
   }
@@ -579,7 +581,7 @@ function showTopBanner(teamName, text, isMega = false) {
   
   banner.classList.add('show');
   clearTimeout(banner._t);
-  banner._t = setTimeout(() => banner.classList.remove('show'), 6000); // Мегу держим чуть дольше
+  banner._t = setTimeout(() => banner.classList.remove('show'), 6000);
 }
 
 function openTeamFromBanner() {
@@ -601,29 +603,24 @@ function playBeep(isMega = false) {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     
-    // Для Меги делаем длинный и противный звук сирены
     if (isMega) {
         const o = audioCtx.createOscillator();
         const g = audioCtx.createGain();
         o.connect(g); g.connect(audioCtx.destination);
-        o.type = 'sawtooth'; // Более резкий звук
+        o.type = 'sawtooth';
         const t = audioCtx.currentTime;
-        // Сирена: понижаем и повышаем частоту 3 раза
         o.frequency.setValueAtTime(600, t);
         o.frequency.linearRampToValueAtTime(1200, t + 0.3);
         o.frequency.linearRampToValueAtTime(600, t + 0.6);
         o.frequency.linearRampToValueAtTime(1200, t + 0.9);
         o.frequency.linearRampToValueAtTime(600, t + 1.2);
         o.frequency.linearRampToValueAtTime(1200, t + 1.5);
-        
         g.gain.setValueAtTime(0.3, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 1.5); // Затухает 1.5 секунды
-        
+        g.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
         o.start(); o.stop(t + 1.5);
         return;
     }
 
-    // Обычный звук
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
@@ -655,10 +652,14 @@ if (bc) bc.onmessage = e => {
   }
 };
 
-/* ---------- Старт ---------- */
+/* ---------- Старт и Service Worker ---------- */
 (function init() {
   if (state.email) { initHome(); show('screen-home'); }
   else show('screen-auth');
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
+  }
 })();
 </script>
 </body>
